@@ -1,5 +1,10 @@
 # Signic SDK (Python)
 
+> **Git policy — never auto-commit or auto-push.** Leave your work in the working tree.
+> Run `git commit`, `git push`, `gh pr create`, or `scripts/push_all.sh` **only when the user
+> explicitly asks in that turn**. Approval for an earlier change does not carry forward, and
+> finishing a task is not permission to commit it.
+
 Python SDK for the Signic decentralized email platform. Authenticates users via SIWE (Sign-In with Ethereum) and provides read access to emails stored in a WildDuck mail server.
 
 ## Architecture
@@ -94,3 +99,7 @@ These are the WildDuck REST endpoints this SDK calls:
 - `GET /users/{id}/mailboxes/{mailbox}/messages?unseen&limit` — (WildDuck) List messages
 - `GET /users/{id}/mailboxes/{mailbox}/messages/{message}` — (WildDuck) Get full message detail
 - `PUT /users/{id}/mailboxes/{mailbox}/messages/{message}` — (WildDuck) Update message flags
+
+## Git Workflow
+
+- Do not use feature branches for code changes. Always stay on the current branch.
