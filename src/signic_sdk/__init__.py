@@ -27,7 +27,18 @@ from signic_sdk.errors import (
     SignicNetworkError,
     SignicValidationError,
 )
+from signic_sdk.subaddress import (
+    ParsedSubaddress,
+    build_subaddress,
+    get_subaddress_tag,
+    has_subaddress_tag,
+    parse_subaddress,
+    same_base_address,
+    strip_subaddress_tag,
+)
 from signic_sdk.types import (
+    CustomAddressAvailability,
+    CustomAddressState,
     MarkAsReadResult,
     SignicClientConfig,
     SignicEmail,
@@ -38,7 +49,10 @@ from signic_sdk.types import (
 )
 
 __all__ = [
+    "CustomAddressAvailability",
+    "CustomAddressState",
     "MarkAsReadResult",
+    "ParsedSubaddress",
     "SignicAuthError",
     "SignicClient",
     "SignicClientConfig",
@@ -50,4 +64,10 @@ __all__ = [
     "SignicNetworkError",
     "SignicValidationError",
     "UnreadEmailsResult",
+    "build_subaddress",
+    "get_subaddress_tag",
+    "has_subaddress_tag",
+    "parse_subaddress",
+    "same_base_address",
+    "strip_subaddress_tag",
 ]

@@ -100,6 +100,35 @@ class MarkAsReadResult:
 
 
 @dataclass(frozen=True)
+class CustomAddressAvailability:
+    """Result from :meth:`SignicClient.check_custom_address_availability`."""
+
+    name: str
+    """The normalized (lowercased) local part that was checked."""
+    available: bool
+    """Whether the local part can be claimed."""
+    reason: str | None = None
+    """When unavailable, why (e.g. ``taken``, ``reserved``, ``wallet_address``,
+    ``name_service_postfix``, ``invalid_format``)."""
+    service: str | None = None
+    """For ``name_service_postfix`` rejections: which service (``ENS``/``SNS``)."""
+
+
+@dataclass(frozen=True)
+class CustomAddressState:
+    """A wallet's custom (user-defined) address state."""
+
+    wallet_address: str
+    """The owning wallet address."""
+    chain_type: str
+    """``EVM`` or ``SOLANA``."""
+    custom_address: str | None
+    """The active custom local part (e.g. ``john``), or ``None`` if none set."""
+    credits_remaining: int
+    """Remaining number of times the user may (re)set a custom address."""
+
+
+@dataclass(frozen=True)
 class SignicEmailAttachment:
     """Metadata for a single email attachment."""
 

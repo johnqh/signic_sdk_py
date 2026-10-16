@@ -33,6 +33,8 @@ Example::
 from __future__ import annotations
 
 import base64
+import secrets
+import time
 from typing import Any
 from urllib.parse import quote, urlencode
 
@@ -44,6 +46,8 @@ from signic_sdk._network.http import http_get, http_post, http_put
 from signic_sdk.errors import SignicAuthError, SignicError
 from signic_sdk.types import (
     AuthState,
+    CustomAddressAvailability,
+    CustomAddressState,
     MarkAsReadResult,
     SignicClientConfig,
     SignicEmail,
@@ -252,6 +256,123 @@ class SignicClient:
         )
 
     # ------------------------------------------------------------------
+    # Custom (user-defined) address
+    # ------------------------------------------------------------------
+
+    async def check_custom_address_availability(
+        self, name: str
+    ) -> CustomAddressAvailability:
+        """Check whether a desired custom address local part is available.
+
+        Public -- does not require :meth:`connect`.
+
+        Args:
+            name: Desired local part (e.g. ``john``); lowercased server-side.
+
+        Raises:
+            SignicError: If the request fails.
+        """
+        endpoint = f"{self._indexer_url}/addresses/custom/{quote(name)}/availability"
+
+        response = await http_get(
+            self._http_client,
+            endpoint,
+            {"Content-Type": "application/json", "Accept": "application/json"},
+        )
+
+        data = response.data
+        if not data.get("success") or data.get("data") is None:
+            raise SignicError(
+                data.get("error", "Failed to check custom address availability"),
+                "check_custom_address_availability",
+                response.status,
+            )
+
+        payload = data["data"]
+        return CustomAddressAvailability(
+            name=payload.get("name", name.lower()),
+            available=bool(payload.get("available")),
+            reason=payload.get("reason"),
+            service=payload.get("service"),
+        )
+
+    async def get_custom_address(self) -> CustomAddressState:
+        """Get the connected wallet's custom (user-defined) address state.
+
+        Requires :meth:`connect`.
+
+        Raises:
+            SignicAuthError: If not connected.
+            SignicError: If the request fails.
+        """
+        self._require_auth()
+        address = self._account.address
+        endpoint = f"{self._indexer_url}/wallets/{quote(address)}/custom-address"
+
+        response = await http_get(
+            self._http_client, endpoint, await self._indexer_auth_headers()
+        )
+
+        data = response.data
+        if not data.get("success") or data.get("data") is None:
+            raise SignicError(
+                data.get("error", "Failed to get custom address"),
+                "get_custom_address",
+                response.status,
+            )
+
+        return self._to_custom_address_state(data["data"])
+
+    async def set_custom_address(self, name: str) -> CustomAddressState:
+        """Claim (set) a custom (user-defined) address for the connected wallet.
+
+        A custom address can be set only once (subject to the remaining
+        allowance) and is rejected if already taken, reserved, a wallet-address
+        string, or ending in an ENS/SNS postfix. Use
+        :meth:`check_custom_address_availability` first to validate interactively.
+
+        Requires :meth:`connect`.
+
+        Args:
+            name: Desired local part (e.g. ``john``); lowercased server-side.
+
+        Raises:
+            SignicAuthError: If not connected.
+            SignicValidationError: If the name is rejected (400).
+            SignicError: On conflict (409) or other errors.
+        """
+        self._require_auth()
+        address = self._account.address
+        endpoint = f"{self._indexer_url}/wallets/{quote(address)}/custom-address"
+
+        response = await http_post(
+            self._http_client,
+            endpoint,
+            {"address": name},
+            await self._indexer_auth_headers(),
+        )
+
+        data = response.data
+        if not data.get("success") or data.get("data") is None:
+            raise SignicError(
+                data.get("error", "Failed to set custom address"),
+                "set_custom_address",
+                response.status,
+            )
+
+        return self._to_custom_address_state(data["data"])
+
+    @staticmethod
+    def _to_custom_address_state(payload: dict[str, Any]) -> CustomAddressState:
+        """Map an indexer custom-address payload (camelCase) to a dataclass."""
+        return CustomAddressState(
+            wallet_address=payload.get("walletAddress", ""),
+            chain_type=payload.get("chainType", ""),
+            custom_address=payload.get("customAddress"),
+            credits_remaining=int(payload.get("creditsRemaining", 0)),
+        )
+
+    # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
 
@@ -283,6 +404,27 @@ class SignicClient:
             )
 
         return data["data"]["message"]  # type: ignore[no-any-return]
+
+    async def _indexer_auth_headers(self) -> dict[str, str]:
+        """Build the signature-gated header trio for Indexer API calls.
+
+        Signs a fresh random message with the wallet's private key. Requires
+        :meth:`connect` (uses the connected wallet as the signer).
+        """
+        address: str = self._account.address
+        nonce = secrets.token_hex(16)
+        timestamp = int(time.time() * 1000)
+        message = f"Indexer authentication message: {nonce} at {timestamp}"
+        signable = encode_defunct(text=message)
+        signed = self._account.sign_message(signable)
+        base64_signature = self._format_signature_to_base64(signed.signature.hex())
+        return {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "x-signature": base64_signature,
+            "x-message": quote(message, safe=""),
+            "x-signer": address,
+        }
 
     @staticmethod
     def _format_signature_to_base64(hex_signature: str) -> str:
