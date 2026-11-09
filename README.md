@@ -2,6 +2,10 @@
 
 Python SDK for the [Signic](https://signic.email) decentralized email platform. Authenticate with an Ethereum wallet via SIWE (Sign-In with Ethereum) and read emails from a WildDuck mail server.
 
+Also provides methods to claim a custom (human-readable) email address and pure helper functions for Gmail-style `+tag` subaddressing.
+
+License: BUSL-1.1 (Business Source License). Async-first (`httpx.AsyncClient`); all network methods are coroutines.
+
 ## Installation
 
 ```bash
@@ -139,6 +143,34 @@ Mark a message as read (sets the `\Seen` flag).
 
 **Returns:** `MarkAsReadResult` with `.success: bool` and `.updated: int`
 
+#### `async check_custom_address_availability(name: str) -> CustomAddressAvailability`
+
+Check whether a desired custom address local part is available. Does **not** require `connect()`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | `str` | Desired local part (e.g. `john`); lowercased server-side |
+
+**Returns:** `CustomAddressAvailability` with `.name`, `.available: bool`, and (when unavailable) `.reason` / `.service`.
+
+#### `async get_custom_address() -> CustomAddressState`
+
+Get the connected wallet's current custom-address state. Requires `connect()`.
+
+**Returns:** `CustomAddressState`.
+**Raises:** `SignicAuthError` if not connected.
+
+#### `async set_custom_address(name: str) -> CustomAddressState`
+
+Claim a custom (human-readable) address for the connected wallet. A custom address can be set only while credits remain, and is rejected if already taken, reserved, a wallet-address string, or ending in an ENS/SNS postfix. Call `check_custom_address_availability()` first to validate. Requires `connect()`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | `str` | Desired local part; lowercased server-side |
+
+**Returns:** `CustomAddressState`.
+**Raises:** `SignicAuthError` if not connected; `SignicValidationError` if the name is rejected (400); `SignicError` on conflict (409) or other errors.
+
 #### `async aclose() -> None`
 
 Close the underlying HTTP client. Called automatically when using `async with`.
@@ -212,6 +244,53 @@ class SignicEmailAttachment:
     size_kb: int           # Approximate size in KB
 ```
 
+#### `CustomAddressAvailability`
+
+Returned by `check_custom_address_availability()`.
+
+```python
+@dataclass(frozen=True)
+class CustomAddressAvailability:
+    name: str                 # Normalized (lowercased) local part checked
+    available: bool           # Whether it can be claimed
+    reason: str | None = None # e.g. "taken", "reserved", "wallet_address",
+                              #      "name_service_postfix", "invalid_format"
+    service: str | None = None # For name_service_postfix: "ENS" or "SNS"
+```
+
+#### `CustomAddressState`
+
+Returned by `get_custom_address()` and `set_custom_address()`.
+
+```python
+@dataclass(frozen=True)
+class CustomAddressState:
+    wallet_address: str        # Owning wallet address
+    chain_type: str            # "EVM" or "SOLANA"
+    custom_address: str | None # Active custom local part, or None
+    credits_remaining: int     # Remaining (re)set allowance
+```
+
+## Subaddressing
+
+Pure, dependency-free helpers for Gmail-style `+tag` addresses (`john+amazon@signic.email` delivers to `john`). All are importable from `signic_sdk`.
+
+```python
+from signic_sdk import (
+    parse_subaddress, strip_subaddress_tag, get_subaddress_tag,
+    has_subaddress_tag, build_subaddress, same_base_address,
+)
+
+parse_subaddress("john+amazon@signic.email")  # ParsedSubaddress(local_part, base_local, tag, domain) or None
+strip_subaddress_tag("john+amazon@signic.email")  # "john@signic.email"
+get_subaddress_tag("john+amazon@signic.email")    # "amazon"
+has_subaddress_tag("john@signic.email")           # False
+build_subaddress("john@signic.email", "shopping") # "john+shopping@signic.email"
+same_base_address("John+a@signic.email", "john+b@signic.email")  # True
+```
+
+`ParsedSubaddress` is a frozen dataclass with fields `local_part`, `base_local`, `tag: str | None`, and `domain`.
+
 ### Error Classes
 
 All errors extend `SignicError` which carries `operation` and `status_code` attributes.
@@ -234,6 +313,34 @@ except SignicError as err:
     print(f"SDK error: {err}")
 ```
 
+## Development
+
+Requires Python >= 3.11. The package uses a `src/` layout and is built with [hatchling](https://hatch.pypa.io/).
+
+```bash
+# Set up a virtual environment and install with dev dependencies (editable)
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+
+# Lint, format check, and type check
+ruff check src tests
+ruff format --check src tests
+mypy src                       # strict mode
+
+# Tests (pytest with asyncio_mode=auto)
+pytest -m "not integration"    # unit tests only (no network)
+pytest -m integration          # integration tests (require env vars below)
+pytest                         # all; integration auto-skipped without env vars
+
+# Build a wheel/sdist
+pip install build && python -m build
+```
+
+Integration tests hit real Signic endpoints and are skipped unless these environment variables are all set: `SIGNIC_PRIVATE_KEY`, `SIGNIC_INDEXER_URL`, `SIGNIC_WILDDUCK_URL`.
+
+CI/CD runs via GitHub Actions (`.github/workflows/ci-cd.yml`), which calls a shared reusable workflow and publishes to PyPI when `PYPI_TOKEN` is configured.
+
 ## License
 
-BUSL-1.1
+BUSL-1.1 (Business Source License 1.1)

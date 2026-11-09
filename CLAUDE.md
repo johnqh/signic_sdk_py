@@ -28,6 +28,7 @@ src/signic_sdk/
 ├── client.py          — SignicClient class (all public methods)
 ├── types.py           — Public dataclasses (top) + internal types (bottom)
 ├── errors.py          — Error hierarchy: SignicError > Auth | Network | Validation
+├── subaddress.py      — Pure Gmail-style "+tag" helpers (no deps, no I/O)
 └── _network/
     ├── __init__.py
     └── http.py        — Async HTTP utilities (http_get/http_post/http_put)
@@ -37,15 +38,24 @@ tests/
 ├── unit/
 │   ├── test_errors.py — Error hierarchy tests
 │   ├── test_http.py   — HTTP utility tests (pytest-httpx)
-│   └── test_client.py — Client tests with mocked HTTP
+│   ├── test_subaddress.py — Subaddressing helper tests
+│   └── test_client.py — Client tests with mocked HTTP (incl. custom-address)
 └── integration/
     └── test_connect.py — Real endpoint tests (skipped without env vars)
 ```
 
+Beyond read-only email access, `client.py` also has custom-address methods:
+`check_custom_address_availability` (public, no auth), `get_custom_address`
+and `set_custom_address` (auth-required). These call the Indexer with a signed
+`x-signature`/`x-message`/`x-signer` header trio built by `_indexer_auth_headers`.
+
 ## Commands
 
 ```bash
-# Activate venv first
+# One-time setup (no venv is checked in)
+python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"
+
+# Then, in later sessions, activate the venv first
 source .venv/bin/activate
 
 # Individual checks
@@ -83,10 +93,10 @@ ruff check src tests && ruff format --check src tests && mypy src && pytest -m "
 
 ## Related projects (same machine)
 
-- `/Users/johnhuang/projects/signic_sdk` — TypeScript version of this SDK (the reference implementation)
-- `/Users/johnhuang/projects/mail_box_indexer` — Blockchain indexer backend (Ponder + Hono)
-- `/Users/johnhuang/projects/wildduck` — WildDuck mail server (Node.js + MongoDB)
-- `/Users/johnhuang/projects/signic_sdk_demo` — React demo app consuming the TypeScript SDK
+- `/Users/qianghuang/projects/signic_sdk` — TypeScript version of this SDK (the reference implementation)
+- `/Users/qianghuang/projects/mail_box_indexer` — Blockchain indexer backend (Ponder + Hono)
+- `/Users/qianghuang/projects/wildduck` — WildDuck mail server (Node.js + MongoDB)
+- `/Users/qianghuang/projects/signic_sdk_demo` — React demo app consuming the TypeScript SDK
 
 ## WildDuck API reference (commonly used)
 
@@ -99,6 +109,9 @@ These are the WildDuck REST endpoints this SDK calls:
 - `GET /users/{id}/mailboxes/{mailbox}/messages?unseen&limit` — (WildDuck) List messages
 - `GET /users/{id}/mailboxes/{mailbox}/messages/{message}` — (WildDuck) Get full message detail
 - `PUT /users/{id}/mailboxes/{mailbox}/messages/{message}` — (WildDuck) Update message flags
+- `GET /addresses/custom/{name}/availability` — (Indexer) Check custom-address availability (no auth)
+- `GET /wallets/{address}/custom-address` — (Indexer) Get custom-address state (signed headers)
+- `POST /wallets/{address}/custom-address` — (Indexer) Claim a custom address. Body: `{ address }`
 
 ## Git Workflow
 
