@@ -259,9 +259,7 @@ class SignicClient:
     # Custom (user-defined) address
     # ------------------------------------------------------------------
 
-    async def check_custom_address_availability(
-        self, name: str
-    ) -> CustomAddressAvailability:
+    async def check_custom_address_availability(self, name: str) -> CustomAddressAvailability:
         """Check whether a desired custom address local part is available.
 
         Public -- does not require :meth:`connect`.
@@ -309,9 +307,7 @@ class SignicClient:
         address = self._account.address
         endpoint = f"{self._indexer_url}/wallets/{quote(address)}/custom-address"
 
-        response = await http_get(
-            self._http_client, endpoint, await self._indexer_auth_headers()
-        )
+        response = await http_get(self._http_client, endpoint, await self._indexer_auth_headers())
 
         data = response.data
         if not data.get("success") or data.get("data") is None:

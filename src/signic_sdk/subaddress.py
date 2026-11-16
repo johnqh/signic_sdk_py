@@ -49,9 +49,7 @@ def parse_subaddress(email: str) -> ParsedSubaddress | None:
     if not base_local:
         return None
 
-    return ParsedSubaddress(
-        local_part=local_part, base_local=base_local, tag=tag, domain=domain
-    )
+    return ParsedSubaddress(local_part=local_part, base_local=base_local, tag=tag, domain=domain)
 
 
 def strip_subaddress_tag(email: str) -> str:
@@ -103,7 +101,4 @@ def same_base_address(a: str, b: str) -> bool:
     pb = parse_subaddress(b)
     if pa is None or pb is None:
         return False
-    return (
-        pa.base_local.lower() == pb.base_local.lower()
-        and pa.domain.lower() == pb.domain.lower()
-    )
+    return pa.base_local.lower() == pb.base_local.lower() and pa.domain.lower() == pb.domain.lower()
